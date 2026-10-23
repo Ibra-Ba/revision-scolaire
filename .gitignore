@@ -1,0 +1,39 @@
+
+# Secrets et variables d'environnement
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Fichiers temporaires et journaux
+*.log
+tmp/
+temp/
+
+# Données et documents de cours
+data/
+uploads/
+*.sqlite3
+
+# Éditeurs et système
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

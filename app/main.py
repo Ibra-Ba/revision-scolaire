@@ -102,7 +102,7 @@ st.markdown(
 
 # En-tête
 st.markdown(
-    f'<div class="brand">Révi’<span>Pote</span> ✨</div>',
+    '<div class="brand">Révi’<span>Pote</span> ✨</div>',
     unsafe_allow_html=True,
 )
 st.markdown(

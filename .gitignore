@@ -19,6 +19,7 @@ htmlcov/
 venv/
 env/
 
+
 # Jupyter
 .ipynb_checkpoints/
 
@@ -38,7 +39,9 @@ uploads/
 .DS_Store
 Thumbs.db
 
-# Other
-mascot_Révi'Pote.png
+# Fichiers de configuration
+*.ini
+.env
 
-mascot_R\303\251vi\342\200\231Pote.png
+# Other
+revipote_patch/

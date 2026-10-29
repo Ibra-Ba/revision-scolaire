@@ -6,7 +6,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.models import Chapter, Child, RevisionSheet, Subject, Subsection
+from api.models import (
+    Chapter,
+    Child,
+    ExerciseAttempt,
+    ExerciseSession,
+    RevisionSheet,
+    Subject,
+    Subsection,
+)
 from api.models.resources import Exercise, ExerciseSet
 
 
@@ -256,3 +264,169 @@ def test_exercise_set_persists_with_exercises(
     assert exercise.correction == "1/2 est plus grand que 1/4."
     assert exercise.explanation == "Une moitié est plus grande qu'un quart."
     assert exercise.exercise_set_id == exercise_set_id
+
+
+def test_exercise_session_and_attempt_persist_in_postgres(
+    db_session: Session,
+) -> None:
+    child = Child(
+        first_name="Test Session",
+        password_hash="test-only-hash",
+        grade_level="6e",
+    )
+    db_session.add(child)
+    db_session.flush()
+
+    exercise_set = ExerciseSet(
+        scope="subsections",
+        status="draft",
+        title="Calcul mental",
+        instructions="Réponds à la question.",
+        exercises=[
+            Exercise(
+                position=1,
+                exercise_type="short_answer",
+                statement="Combien font 6 × 7 ?",
+                expected_answer="42",
+                accepted_answers=["42"],
+                correction="6 × 7 = 42.",
+                explanation="Six groupes de sept font quarante-deux.",
+                points=2,
+            )
+        ],
+    )
+    db_session.add(exercise_set)
+    db_session.flush()
+
+    exercise = exercise_set.exercises[0]
+
+    session = ExerciseSession(
+        child_id=child.id,
+        exercise_set_id=exercise_set.id,
+        status="in_progress",
+        score=2,
+        max_score=2,
+        attempts=[
+            ExerciseAttempt(
+                exercise_id=exercise.id,
+                attempt_number=1,
+                answer="42",
+                is_correct=True,
+                points_awarded=2,
+            )
+        ],
+    )
+    db_session.add(session)
+    db_session.flush()
+
+    session_id = session.id
+    db_session.expire_all()
+
+    persisted_session = db_session.get(ExerciseSession, session_id)
+
+    assert persisted_session is not None
+    assert persisted_session.status == "in_progress"
+    assert persisted_session.score == 2
+    assert persisted_session.max_score == 2
+    assert len(persisted_session.attempts) == 1
+
+    attempt = persisted_session.attempts[0]
+    assert attempt.answer == "42"
+    assert attempt.is_correct is True
+    assert attempt.points_awarded == 2
+    assert attempt.attempt_number == 1
+
+
+def test_attempt_number_must_be_positive(db_session: Session) -> None:
+    child = Child(
+        first_name="Test Tentative Invalide",
+        password_hash="test-only-hash",
+        grade_level="6e",
+    )
+    exercise_set = ExerciseSet(
+        scope="subsections",
+        status="draft",
+        title="Test contrainte",
+        instructions="Réponds.",
+        exercises=[
+            Exercise(
+                position=1,
+                exercise_type="short_answer",
+                statement="Combien font 2 + 2 ?",
+                expected_answer="4",
+                correction="2 + 2 = 4.",
+                points=1,
+            )
+        ],
+    )
+
+    db_session.add_all([child, exercise_set])
+    db_session.flush()
+
+    exercise = exercise_set.exercises[0]
+    session = ExerciseSession(
+        child_id=child.id,
+        exercise_set_id=exercise_set.id,
+    )
+    db_session.add(session)
+    db_session.flush()
+
+    invalid_attempt = ExerciseAttempt(
+        session_id=session.id,
+        exercise_id=exercise.id,
+        attempt_number=0,
+        answer="4",
+    )
+    db_session.add(invalid_attempt)
+
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+
+
+def test_attempt_points_awarded_must_be_nonnegative(
+    db_session: Session,
+) -> None:
+    child = Child(
+        first_name="Test Points Invalides",
+        password_hash="test-only-hash",
+        grade_level="6e",
+    )
+    exercise_set = ExerciseSet(
+        scope="subsections",
+        status="draft",
+        title="Test points",
+        instructions="Réponds.",
+        exercises=[
+            Exercise(
+                position=1,
+                exercise_type="short_answer",
+                statement="Combien font 3 + 3 ?",
+                expected_answer="6",
+                correction="3 + 3 = 6.",
+                points=1,
+            )
+        ],
+    )
+
+    db_session.add_all([child, exercise_set])
+    db_session.flush()
+
+    exercise = exercise_set.exercises[0]
+    session = ExerciseSession(
+        child_id=child.id,
+        exercise_set_id=exercise_set.id,
+    )
+    db_session.add(session)
+    db_session.flush()
+
+    invalid_attempt = ExerciseAttempt(
+        session_id=session.id,
+        exercise_id=exercise.id,
+        attempt_number=1,
+        answer="6",
+        points_awarded=-1,
+    )
+    db_session.add(invalid_attempt)
+
+    with pytest.raises(IntegrityError):
+        db_session.flush()

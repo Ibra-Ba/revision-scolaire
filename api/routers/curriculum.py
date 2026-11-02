@@ -11,11 +11,14 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
 from api.models import Chapter, Child, Subject
+from api.models.curriculum import Subsection
 from api.schemas.curriculum import (
     ChapterCreate,
     ChapterRead,
     SubjectCreate,
     SubjectRead,
+    SubsectionCreate,
+    SubsectionRead,
 )
 
 router = APIRouter(tags=["Curriculum"])
@@ -162,3 +165,74 @@ def list_chapters(
 
     return list(db.scalars(statement).all())
 
+@router.post(
+    "/chapters/{chapter_id}/subsections",
+    response_model=SubsectionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_subsection(
+    chapter_id: UUID,
+    subsection_data: SubsectionCreate,
+    db: Session = Depends(get_db),
+) -> Subsection:
+    """Create a subsection in a chapter."""
+    chapter = db.get(Chapter, chapter_id)
+
+    if chapter is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chapitre introuvable.",
+        )
+
+    max_position = db.scalar(
+        select(func.max(Subsection.position)).where(
+            Subsection.chapter_id == chapter_id
+        )
+    )
+    next_position = (max_position or 0) + 1
+
+    subsection = Subsection(
+        chapter_id=chapter_id,
+        title=subsection_data.title,
+        position=next_position,
+        lesson_date=subsection_data.lesson_date,
+    )
+
+    db.add(subsection)
+
+    try:
+        db.commit()
+        db.refresh(subsection)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Position de sous-section déjà utilisée dans ce chapitre.",
+        ) from None
+
+    return subsection
+
+@router.get(
+    "/chapters/{chapter_id}/subsections",
+    response_model=list[SubsectionRead],
+)
+def list_subsections(
+    chapter_id: UUID,
+    db: Session = Depends(get_db),
+) -> list[Subsection]:
+    """List subsections of a chapter ordered by position."""
+    chapter = db.get(Chapter, chapter_id)
+
+    if chapter is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chapitre introuvable.",
+        )
+
+    statement = (
+        select(Subsection)
+        .where(Subsection.chapter_id == chapter_id)
+        .order_by(Subsection.position)
+    )
+
+    return list(db.scalars(statement).all())

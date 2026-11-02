@@ -1,7 +1,7 @@
 
 """Pydantic schemas for the school curriculum."""
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,6 +50,28 @@ class ChapterRead(BaseModel):
     subject_id: UUID
     title: str
     position: int
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SubsectionCreate(BaseModel):
+    """Data required to create a subsection."""
+
+    title: str = Field(min_length=1, max_length=200)
+    lesson_date: date | None = None
+
+
+class SubsectionRead(BaseModel):
+    """Subsection data returned by the API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    chapter_id: UUID
+    title: str
+    position: int
+    lesson_date: date | None
     status: str
     created_at: datetime
     updated_at: datetime

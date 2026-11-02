@@ -17,6 +17,8 @@ from api.schemas.curriculum import (
     ChapterRead,
     SubjectCreate,
     SubjectRead,
+    SubsectionContentRead,
+    SubsectionContentUpdate,
     SubsectionCreate,
     SubsectionRead,
 )
@@ -236,3 +238,55 @@ def list_subsections(
     )
 
     return list(db.scalars(statement).all())
+
+@router.put(
+    "/subsections/{subsection_id}/content",
+    response_model=SubsectionContentRead,
+)
+def update_subsection_content(
+    subsection_id: UUID,
+    content_data: SubsectionContentUpdate,
+    db: Session = Depends(get_db),
+) -> Subsection:
+    """Update the educational content of a subsection."""
+    subsection = db.get(Subsection, subsection_id)
+
+    if subsection is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sous-section introuvable.",
+        )
+
+    subsection.source_text = content_data.source_text
+    subsection.status = "draft"
+
+    try:
+        db.commit()
+        db.refresh(subsection)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Impossible d'enregistrer le contenu pédagogique.",
+        ) from None
+
+    return subsection
+
+@router.get(
+    "/subsections/{subsection_id}/content",
+    response_model=SubsectionContentRead,
+)
+def get_subsection_content(
+    subsection_id: UUID,
+    db: Session = Depends(get_db),
+) -> Subsection:
+    """Retrieve the educational content of a subsection."""
+    subsection = db.get(Subsection, subsection_id)
+
+    if subsection is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sous-section introuvable.",
+        )
+
+    return subsection

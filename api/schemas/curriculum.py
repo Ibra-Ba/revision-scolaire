@@ -76,3 +76,20 @@ class SubsectionRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class SubsectionContentUpdate(BaseModel):
+    """Data accepted when updating subsection educational content."""
+
+    source_text: str = Field(min_length=1)
+
+
+class SubsectionContentRead(BaseModel):
+    """Educational content returned by the API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    source_text: str | None
+    status: str
+    updated_at: datetime

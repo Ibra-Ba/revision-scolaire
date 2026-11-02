@@ -32,7 +32,21 @@ class Subject(Base):
 
 class Chapter(Base):
     __tablename__ = "chapters"
-    __table_args__ = (CheckConstraint("position > 0", name="ck_chapter_position_positive"), CheckConstraint("status IN ('draft','in_progress','completed','archived')", name="ck_chapter_status"))
+    __table_args__ = (
+    UniqueConstraint(
+        "subject_id",
+        "position",
+        name="uq_chapter_subject_position",
+    ),
+    CheckConstraint(
+        "position > 0",
+        name="ck_chapter_position_positive",
+    ),
+    CheckConstraint(
+        "status IN ('draft','in_progress','completed','archived')",
+        name="ck_chapter_status",
+    ),
+)
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     subject_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, index=True)

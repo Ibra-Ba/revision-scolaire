@@ -92,4 +92,14 @@ class SubsectionContentRead(BaseModel):
     title: str
     source_text: str | None
     status: str
+    validated_by: UUID | None
+    validator_type: str | None
+    validated_at: datetime | None
     updated_at: datetime
+
+
+class SubsectionValidationRequest(BaseModel):
+    """Data required to validate subsection content."""
+
+    validator_id: UUID
+    validator_type: str = Field(pattern="^(adult|child)$")

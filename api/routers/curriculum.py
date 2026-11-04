@@ -2,6 +2,7 @@
 """API routes for the school curriculum."""
 # ruff: noqa: B008
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,8 +11,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
-from api.models import Chapter, Child, Subject
-from api.models.curriculum import Subsection
+from api.models import (
+    Chapter,
+    Child,
+    Subject,
+    Subsection,
+)
+from api.models.accounts import AdultUser
+from api.models.reviews import AuditEvent
 from api.schemas.curriculum import (
     ChapterCreate,
     ChapterRead,
@@ -21,6 +28,7 @@ from api.schemas.curriculum import (
     SubsectionContentUpdate,
     SubsectionCreate,
     SubsectionRead,
+    SubsectionValidationRequest,
 )
 
 router = APIRouter(tags=["Curriculum"])
@@ -259,6 +267,9 @@ def update_subsection_content(
 
     subsection.source_text = content_data.source_text
     subsection.status = "draft"
+    subsection.validated_by = None
+    subsection.validator_type = None
+    subsection.validated_at = None
 
     try:
         db.commit()
@@ -288,5 +299,71 @@ def get_subsection_content(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sous-section introuvable.",
         )
+
+    return subsection
+
+@router.post(
+    "/subsections/{subsection_id}/validate",
+    response_model=SubsectionContentRead,
+)
+def validate_subsection(
+    subsection_id: UUID,
+    validation_data: SubsectionValidationRequest,
+    db: Session = Depends(get_db),
+) -> Subsection:
+    """Validate subsection content as an adult or a child."""
+    subsection = db.get(Subsection, subsection_id)
+
+    if subsection is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sous-section introuvable.",
+        )
+
+    if not subsection.source_text or not subsection.source_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le contenu pédagogique est vide.",
+        )
+
+    if validation_data.validator_type == "adult":
+        validator = db.get(AdultUser, validation_data.validator_id)
+    else:
+        validator = db.get(Child, validation_data.validator_id)
+
+    if validator is None or not validator.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Validateur introuvable ou inactif.",
+        )
+
+    subsection.status = "approved"
+    subsection.validated_by = validation_data.validator_id
+    subsection.validator_type = validation_data.validator_type
+    subsection.validated_at = datetime.now(UTC)
+
+    audit_event = AuditEvent(
+        actor_type=validation_data.validator_type,
+        actor_id=validation_data.validator_id,
+        action="subsection.validated",
+        resource_type="subsection",
+        resource_id=subsection.id,
+        details={
+            "validator_type": validation_data.validator_type,
+            "new_status": "approved",
+        },
+    )
+
+    db.add(audit_event)
+
+    try:
+        db.commit()
+        db.refresh(subsection)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Impossible d'enregistrer la validation.",
+        ) from None
 
     return subsection

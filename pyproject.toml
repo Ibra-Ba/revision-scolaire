@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy",
     "alembic",
     "psycopg[binary]",
+    "pwdlib[argon2]>=0.3.1",
 ]
 
 [dependency-groups]

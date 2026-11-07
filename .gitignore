@@ -46,3 +46,4 @@ Thumbs.db
 # Other
 revipote_patch/
 scripts/
+backup_revipote_before_parent_migration.sql

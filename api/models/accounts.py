@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,12 @@ class Child(Base):
     __tablename__ = "children"
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    adult_user_id: Mapped[UUID] = mapped_column(
+    PG_UUID(as_uuid=True),
+    ForeignKey("adult_users.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+    )
     first_name: Mapped[str] = mapped_column(String(80), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     grade_level: Mapped[str] = mapped_column(String(30), nullable=False)

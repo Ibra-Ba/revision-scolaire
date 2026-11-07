@@ -2,6 +2,7 @@
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_db
@@ -555,7 +556,13 @@ def test_child_cannot_spoof_validator_identity(
     assert response.json()["detail"] == (
         "Seul un adulte peut valider le contenu pédagogique."
     )
-
+    audit_events = db_session.scalars(
+    select(AuditEvent).where(
+        AuditEvent.action == "subsection.validated",
+        AuditEvent.resource_id == subsection.id,
+    )
+    ).all()
+    assert audit_events == []
     db_session.refresh(subsection)
     assert subsection.status == "draft"
 
@@ -674,3 +681,84 @@ def test_parent_cannot_access_another_family_child(
         )
 
     assert exc_info.value.status_code == 403
+
+def test_parent_can_validate_own_child_subsection(
+    client,
+    test_adult,
+    test_subject,
+    db_session,
+):
+    chapter = Chapter(
+        subject_id=test_subject.id,
+        title="Grammaire",
+        position=1,
+    )
+    db_session.add(chapter)
+    db_session.flush()
+
+    subsection = Subsection(
+        chapter_id=chapter.id,
+        title="Les accords",
+        position=1,
+        source_text="Le verbe s'accorde avec son sujet.",
+    )
+    db_session.add(subsection)
+    db_session.flush()
+
+    login = client.post(
+        "/auth/adult/login",
+        json={
+            "identifier": test_adult.username,
+            "password": "AdultPassword123",
+        },
+    )
+    assert login.status_code == 200
+
+    token = login.json()["access_token"]
+
+    response = client.post(
+        f"/subsections/{subsection.id}/validate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["status"] == "approved"
+    assert data["validator_type"] == "adult"
+
+def test_parent_cannot_validate_another_family_subsection(
+    client,
+    test_adult,
+    test_other_child_chapter,
+    db_session,
+):
+    subsection = Subsection(
+        chapter_id=test_other_child_chapter.id,
+        title="Les accords",
+        position=1,
+        source_text="Le verbe s'accorde avec son sujet.",
+    )
+    db_session.add(subsection)
+    db_session.flush()
+
+    login = client.post(
+        "/auth/adult/login",
+        json={
+            "identifier": test_adult.username,
+            "password": "AdultPassword123",
+        },
+    )
+    assert login.status_code == 200
+
+    token = login.json()["access_token"]
+
+    response = client.post(
+        f"/subsections/{subsection.id}/validate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+
+    db_session.refresh(subsection)
+    assert subsection.status == "draft"

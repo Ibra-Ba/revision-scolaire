@@ -13,16 +13,37 @@ from api.models import (
     Subject,
     Subsection,
 )
+from api.models.accounts import AdultUser
 from api.models.resources import Exercise, ExerciseSet
 
 
-def test_curriculum_hierarchy_persists_in_postgres(db_session: Session) -> None:
+def _create_test_child(
+    db_session: Session,
+    first_name: str,
+) -> Child:
+    adult = AdultUser(
+        username="integration_test_parent",
+        password_hash="test-only-hash",
+        is_active=True,
+    )
+    db_session.add(adult)
+    db_session.flush()
+
     child = Child(
-        first_name="Test RéviPote",
+        adult_user_id=adult.id,
+        first_name=first_name,
         password_hash="test-only-hash",
         grade_level="6e",
     )
+    db_session.add(child)
+    db_session.flush()
 
+    return child
+
+
+def test_curriculum_hierarchy_persists_in_postgres(db_session: Session) -> None:
+
+    child = _create_test_child(db_session, "Test RéviPote")
     subject = Subject(name="Mathématiques", position=1)
     chapter = Chapter(title="Les fractions", position=1)
     subsection = Subsection(
@@ -33,11 +54,6 @@ def test_curriculum_hierarchy_persists_in_postgres(db_session: Session) -> None:
 
     subject.chapters.append(chapter)
     chapter.subsections.append(subsection)
-
-    # La relation Child -> Subject est portée par child_id.
-    db_session.add(child)
-    db_session.flush()
-
     subject.child_id = child.id
     db_session.add(subject)
     db_session.commit()
@@ -61,14 +77,7 @@ def test_curriculum_hierarchy_persists_in_postgres(db_session: Session) -> None:
     assert persisted_subsection.chapter.subject.child_id == child_id
 
 def test_subject_position_must_be_positive(db_session: Session) -> None:
-    child = Child(
-        first_name="Test Contrainte",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
-    db_session.add(child)
-    db_session.flush()
-
+    child = _create_test_child(db_session, "Test Contrainte")
     invalid_subject = Subject(
         child_id=child.id,
         name="Mathématiques",
@@ -84,14 +93,7 @@ def test_subject_position_must_be_positive(db_session: Session) -> None:
 def test_subject_name_must_be_unique_per_child(
     db_session: Session,
 ) -> None:
-    child = Child(
-        first_name="Test Unicité",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
-    db_session.add(child)
-    db_session.flush()
-
+    child = _create_test_child(db_session, "Test Unicité")
     first_subject = Subject(
         child_id=child.id,
         name="Mathématiques",
@@ -115,11 +117,7 @@ def test_subject_name_must_be_unique_per_child(
 def test_revision_sheet_persists_with_polymorphic_type(
     db_session: Session,
 ) -> None:
-    child = Child(
-        first_name="Test Fiche",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
+    child = _create_test_child(db_session, "Test Fiche")
     subject = Subject(name="Français", position=1)
     chapter = Chapter(title="Le sujet et le verbe", position=1)
     subsection = Subsection(
@@ -127,17 +125,11 @@ def test_revision_sheet_persists_with_polymorphic_type(
         position=1,
         source_text="Le sujet indique qui fait l'action.",
     )
-
     subject.chapters.append(chapter)
     chapter.subsections.append(subsection)
-
-    db_session.add(child)
-    db_session.flush()
-
     subject.child_id = child.id
     db_session.add(subject)
     db_session.flush()
-
     sheet = RevisionSheet(
         scope="subsections",
         status="draft",
@@ -167,11 +159,7 @@ def test_revision_sheet_persists_with_polymorphic_type(
 def test_exercise_set_persists_with_exercises(
     db_session: Session,
 ) -> None:
-    child = Child(
-        first_name="Test Exercices",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
+    child = _create_test_child(db_session, "Test Exercices")
     subject = Subject(name="Mathématiques", position=1)
     chapter = Chapter(title="Les fractions", position=1)
     subsection = Subsection(
@@ -182,10 +170,6 @@ def test_exercise_set_persists_with_exercises(
 
     subject.chapters.append(chapter)
     chapter.subsections.append(subsection)
-
-    db_session.add(child)
-    db_session.flush()
-
     subject.child_id = child.id
     db_session.add(subject)
     db_session.flush()
@@ -236,13 +220,7 @@ def test_exercise_set_persists_with_exercises(
 def test_exercise_session_and_attempt_persist_in_postgres(
     db_session: Session,
 ) -> None:
-    child = Child(
-        first_name="Test Session",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
-    db_session.add(child)
-    db_session.flush()
+    child = _create_test_child(db_session, "Test Session")
 
     exercise_set = ExerciseSet(
         scope="subsections",
@@ -305,11 +283,7 @@ def test_exercise_session_and_attempt_persist_in_postgres(
 
 
 def test_attempt_number_must_be_positive(db_session: Session) -> None:
-    child = Child(
-        first_name="Test Tentative Invalide",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
+    child = _create_test_child(db_session, "Test Tentative Invalide")
     exercise_set = ExerciseSet(
         scope="subsections",
         status="draft",
@@ -335,9 +309,7 @@ def test_attempt_number_must_be_positive(db_session: Session) -> None:
         child_id=child.id,
         exercise_set_id=exercise_set.id,
     )
-    db_session.add(session)
-    db_session.flush()
-
+    
     invalid_attempt = ExerciseAttempt(
         session_id=session.id,
         exercise_id=exercise.id,
@@ -353,11 +325,7 @@ def test_attempt_number_must_be_positive(db_session: Session) -> None:
 def test_attempt_points_awarded_must_be_nonnegative(
     db_session: Session,
 ) -> None:
-    child = Child(
-        first_name="Test Points Invalides",
-        password_hash="test-only-hash",
-        grade_level="6e",
-    )
+    child = _create_test_child(db_session, "Test Points Invalides")
     exercise_set = ExerciseSet(
         scope="subsections",
         status="draft",

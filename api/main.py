@@ -1,6 +1,7 @@
 
 from fastapi import FastAPI
 
+from api.routers.auth import router as auth_router
 from api.routers.curriculum import router as curriculum_router
 
 app = FastAPI(
@@ -10,6 +11,7 @@ app = FastAPI(
 )
 
 app.include_router(curriculum_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")

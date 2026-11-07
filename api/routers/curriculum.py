@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from api.auth import CurrentUser
 from api.dependencies import get_db
 from api.models import (
     Chapter,
@@ -28,7 +29,6 @@ from api.schemas.curriculum import (
     SubsectionContentUpdate,
     SubsectionCreate,
     SubsectionRead,
-    SubsectionValidationRequest,
 )
 
 router = APIRouter(tags=["Curriculum"])
@@ -43,9 +43,15 @@ def create_subject(
     child_id: UUID,
     subject_data: SubjectCreate,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Subject:
     """Create a subject for an existing child."""
 
+    if isinstance(current_user, Child):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul un adulte peut créer une matière.",
+        )
     child = db.get(Child, child_id)
     if child is None:
         raise HTTPException(
@@ -80,6 +86,7 @@ def create_subject(
 def list_subjects(
     child_id: UUID,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = None,
 ) -> list[Subject]:
     """List subjects belonging to a child."""
 
@@ -88,6 +95,12 @@ def list_subjects(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Enfant introuvable.",
+        )
+
+    if isinstance(current_user, Child) and current_user.id != child_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès interdit à cet enfant.",
         )
 
     statement = (
@@ -104,17 +117,19 @@ def list_subjects(
     response_model=ChapterRead,
     status_code=status.HTTP_201_CREATED,
 )
-@router.post(
-    "/subjects/{subject_id}/chapters",
-    response_model=ChapterRead,
-    status_code=status.HTTP_201_CREATED,
-)
 def create_chapter(
     subject_id: UUID,
     chapter_data: ChapterCreate,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Chapter:
     """Create a chapter for an existing subject."""
+
+    if isinstance(current_user, Child):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul un adulte peut créer un chapitre.",
+        )
 
     subject = db.get(Subject, subject_id)
     if subject is None:
@@ -154,9 +169,15 @@ def create_chapter(
     "/subjects/{subject_id}/chapters",
     response_model=list[ChapterRead],
 )
+
+@router.get(
+    "/subjects/{subject_id}/chapters",
+    response_model=list[ChapterRead],
+)
 def list_chapters(
     subject_id: UUID,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> list[Chapter]:
     """List chapters belonging to a subject."""
 
@@ -167,6 +188,12 @@ def list_chapters(
             detail="Matière introuvable.",
         )
 
+    if isinstance(current_user, Child) and current_user.id != subject.child_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès interdit à cette matière.",
+        )
+
     statement = (
         select(Chapter)
         .where(Chapter.subject_id == subject_id)
@@ -174,6 +201,7 @@ def list_chapters(
     )
 
     return list(db.scalars(statement).all())
+
 
 @router.post(
     "/chapters/{chapter_id}/subsections",
@@ -184,8 +212,15 @@ def create_subsection(
     chapter_id: UUID,
     subsection_data: SubsectionCreate,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Subsection:
     """Create a subsection in a chapter."""
+
+    if isinstance(current_user, Child):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul un adulte peut créer une sous-section.",
+        )
     chapter = db.get(Chapter, chapter_id)
 
     if chapter is None:
@@ -228,6 +263,7 @@ def create_subsection(
 )
 def list_subsections(
     chapter_id: UUID,
+    current_user: CurrentUser,
     db: Session = Depends(get_db),
 ) -> list[Subsection]:
     """List subsections of a chapter ordered by position."""
@@ -238,14 +274,20 @@ def list_subsections(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chapitre introuvable.",
         )
+    if isinstance(current_user, Child):
+        subject = db.get(Subject, chapter.subject_id)
+        if subject is None or subject.child_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accès interdit à ce chapitre.",
+            )
 
     statement = (
         select(Subsection)
         .where(Subsection.chapter_id == chapter_id)
-        .order_by(Subsection.position)
-    )
+        .order_by(Subsection.position))
 
-    return list(db.scalars(statement).all())
+    return  list(db.scalars(statement).all())
 
 @router.put(
     "/subsections/{subsection_id}/content",
@@ -255,8 +297,16 @@ def update_subsection_content(
     subsection_id: UUID,
     content_data: SubsectionContentUpdate,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Subsection:
     """Update the educational content of a subsection."""
+
+    if isinstance(current_user, Child):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul un adulte peut modifier le contenu pédagogique.",
+        )
+
     subsection = db.get(Subsection, subsection_id)
 
     if subsection is None:
@@ -283,6 +333,7 @@ def update_subsection_content(
 
     return subsection
 
+
 @router.get(
     "/subsections/{subsection_id}/content",
     response_model=SubsectionContentRead,
@@ -290,6 +341,7 @@ def update_subsection_content(
 def get_subsection_content(
     subsection_id: UUID,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Subsection:
     """Retrieve the educational content of a subsection."""
     subsection = db.get(Subsection, subsection_id)
@@ -300,7 +352,18 @@ def get_subsection_content(
             detail="Sous-section introuvable.",
         )
 
+    if isinstance(current_user, Child):
+        chapter = db.get(Chapter, subsection.chapter_id)
+        subject = db.get(Subject, chapter.subject_id) if chapter else None
+
+        if subject is None or subject.child_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accès interdit à cette sous-section.",
+            )
+
     return subsection
+
 
 @router.post(
     "/subsections/{subsection_id}/validate",
@@ -308,10 +371,11 @@ def get_subsection_content(
 )
 def validate_subsection(
     subsection_id: UUID,
-    validation_data: SubsectionValidationRequest,
     db: Session = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> Subsection:
-    """Validate subsection content as an adult or a child."""
+    """Validate subsection content using the authenticated user."""
+
     subsection = db.get(Subsection, subsection_id)
 
     if subsection is None:
@@ -326,30 +390,34 @@ def validate_subsection(
             detail="Le contenu pédagogique est vide.",
         )
 
-    if validation_data.validator_type == "adult":
-        validator = db.get(AdultUser, validation_data.validator_id)
-    else:
-        validator = db.get(Child, validation_data.validator_id)
+    validator_type = (
+        "adult" if isinstance(current_user, AdultUser) else "child"
+    )
+    validator_id = current_user.id
 
-    if validator is None or not validator.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Validateur introuvable ou inactif.",
-        )
+    if isinstance(current_user, Child):
+        chapter = db.get(Chapter, subsection.chapter_id)
+        subject = db.get(Subject, chapter.subject_id) if chapter else None
+
+        if subject is None or subject.child_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accès interdit à cette sous-section.",
+            )
 
     subsection.status = "approved"
-    subsection.validated_by = validation_data.validator_id
-    subsection.validator_type = validation_data.validator_type
+    subsection.validated_by = validator_id
+    subsection.validator_type = validator_type
     subsection.validated_at = datetime.now(UTC)
 
     audit_event = AuditEvent(
-        actor_type=validation_data.validator_type,
-        actor_id=validation_data.validator_id,
+        actor_type=validator_type,
+        actor_id=validator_id,
         action="subsection.validated",
         resource_type="subsection",
         resource_id=subsection.id,
         details={
-            "validator_type": validation_data.validator_type,
+            "validator_type": validator_type,
             "new_status": "approved",
         },
     )

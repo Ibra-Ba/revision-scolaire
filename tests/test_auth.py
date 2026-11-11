@@ -86,12 +86,13 @@ def test_adult_login_success(client, test_adult):
     assert response.json()["access_token"]
 
 
-def test_child_login_success(client, test_child):
+def test_child_login_success(client, test_child, test_adult):
     response = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
+            "adult_identifier": test_adult.username,
         },
     )
 
@@ -112,10 +113,11 @@ def test_adult_login_wrong_password(client, test_adult):
     assert response.status_code == 401
 
 
-def test_child_login_wrong_password(client, test_child):
+def test_child_login_wrong_password(client, test_child, test_adult):
     response = client.post(
         "/auth/child/login",
         json={
+            "adult_identifier": test_adult.username,
             "identifier": test_child.first_name,
             "password": "WrongPassword123",
         },
@@ -144,13 +146,14 @@ def test_adult_can_read_own_profile(client, test_adult):
     assert response.json()["id"] == str(test_adult.id)
 
 
-def test_child_can_read_own_profile(client, test_child):
+def test_child_can_read_own_profile(client, test_child, test_adult):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
-        },
+             },
     )
     token = login.json()["access_token"]
 
@@ -183,13 +186,14 @@ def test_subject(db_session: Session, test_child: Child) -> Subject:
 
 
 
-def test_child_cannot_create_subject(client, test_child):
+def test_child_cannot_create_subject(client, test_child, test_adult):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
-        },
+            "adult_identifier": test_adult.username,
+            },
     )
     token = login.json()["access_token"]
 
@@ -202,14 +206,23 @@ def test_child_cannot_create_subject(client, test_child):
     assert response.status_code == 403
 
 
-def test_child_can_list_own_subjects(client, test_child, test_subject):
+def test_child_can_list_own_subjects(client, test_child, test_adult, test_subject):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
-        },
+            "adult_identifier": test_adult.username,
+             },
     )
+    token = login.json()["access_token"]
+
+    response = client.get(
+        f"/children/{test_child.id}/subjects",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
     token = login.json()["access_token"]
 
     response = client.get(
@@ -223,7 +236,7 @@ def test_child_can_list_own_subjects(client, test_child, test_subject):
 
 
 def test_child_cannot_list_another_child_subjects(
-    client, test_child, other_adult, db_session
+    client, test_child,test_adult , other_adult, db_session
 ):
     other_child = Child(
         first_name="OtherTestChild",
@@ -239,6 +252,7 @@ def test_child_cannot_list_another_child_subjects(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
         },
     )
@@ -252,11 +266,12 @@ def test_child_cannot_list_another_child_subjects(
     assert response.status_code == 403
 
 
-def test_child_cannot_create_chapter(client, test_child, test_subject):
+def test_child_cannot_create_chapter(client, test_child, test_adult, test_subject):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
         },
     )
@@ -300,13 +315,14 @@ def test_other_child_subject(
 
 
 def test_child_cannot_list_another_child_chapters(
-    client, test_child, test_other_child_subject
+    client, test_child, test_adult, test_other_child_subject
 ):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
+            "adult_identifier": test_adult.username,
         },
     )
     assert login.status_code == 200
@@ -337,13 +353,14 @@ def test_other_child_chapter(
 
 
 def test_child_cannot_create_subsection(
-    client, test_child, test_other_child_chapter
+    client, test_child, test_adult, test_other_child_chapter
 ):
     login = client.post(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
+            "adult_identifier": test_adult.username,
         },
     )
     token = login.json()["access_token"]
@@ -358,7 +375,7 @@ def test_child_cannot_create_subsection(
 
 
 def test_child_cannot_read_another_child_subsection(
-    client, test_child, test_other_child_chapter, db_session
+    client, test_child, test_adult, test_other_child_chapter, db_session
 ):
     subsection = Subsection(
         chapter_id=test_other_child_chapter.id,
@@ -374,6 +391,7 @@ def test_child_cannot_read_another_child_subsection(
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
+            "adult_identifier": test_adult.username,
         },
     )
     token = login.json()["access_token"]
@@ -387,7 +405,7 @@ def test_child_cannot_read_another_child_subsection(
 
 
 def test_child_cannot_update_subsection_content(
-    client, test_child, test_subject, db_session
+    client, test_child, test_adult, test_subject, db_session
 ):
     chapter = Chapter(
         subject_id=test_subject.id,
@@ -411,6 +429,7 @@ def test_child_cannot_update_subsection_content(
         json={
             "identifier": test_child.first_name,
             "password": "ChildPassword123",
+            "adult_identifier": test_adult.username,
         },
     )
     token = login.json()["access_token"]
@@ -426,7 +445,7 @@ def test_child_cannot_update_subsection_content(
 
 
 def test_adult_can_validate_subsection_with_own_identity(
-    client, test_adult, test_child, test_subject, db_session
+    client, test_adult, test_subject, db_session
 ):
     chapter = Chapter(
         subject_id=test_subject.id,
@@ -483,7 +502,7 @@ def test_adult_can_validate_subsection_with_own_identity(
 
 
 def test_child_cannot_validate_another_child_subsection(
-    client, test_child, test_other_child_chapter, db_session
+    client, test_child, test_adult, test_other_child_chapter, db_session
 ):
     subsection = Subsection(
         chapter_id=test_other_child_chapter.id,
@@ -498,6 +517,7 @@ def test_child_cannot_validate_another_child_subsection(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
         },
     )
@@ -516,6 +536,7 @@ def test_child_cannot_validate_another_child_subsection(
 def test_child_cannot_spoof_validator_identity(
     client,
     test_child,
+    test_adult,
     test_subject,
     db_session,
 ):
@@ -540,6 +561,7 @@ def test_child_cannot_spoof_validator_identity(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
         },
     )
@@ -585,7 +607,7 @@ def test_list_subsections_requires_authentication(
     assert response.status_code == 401
 
 def test_child_cannot_list_another_child_subsections(
-    client, test_child, test_other_child_chapter, db_session
+    client, test_child, test_adult, test_other_child_chapter, db_session
 ):
     subsection = Subsection(
         chapter_id=test_other_child_chapter.id,
@@ -600,6 +622,7 @@ def test_child_cannot_list_another_child_subsections(
     "/auth/child/login",
     json={
         "identifier": test_child.first_name,
+        "adult_identifier": test_adult.username,
         "password": "ChildPassword123",
     },
 )
@@ -614,7 +637,7 @@ def test_child_cannot_list_another_child_subsections(
 
 
 def test_child_can_list_own_subsections(
-    client, test_child, test_subject, db_session
+    client, test_child, test_adult, test_subject, db_session
 ):
     chapter = Chapter(
         subject_id=test_subject.id,
@@ -637,6 +660,7 @@ def test_child_can_list_own_subsections(
         "/auth/child/login",
         json={
             "identifier": test_child.first_name,
+            "adult_identifier": test_adult.username,
             "password": "ChildPassword123",
         },
     )
@@ -762,3 +786,76 @@ def test_parent_cannot_validate_another_family_subsection(
 
     db_session.refresh(subsection)
     assert subsection.status == "draft"
+
+
+def test_children_with_same_first_name_can_login_separately(
+    client,
+    test_adult,
+    other_adult,
+    db_session,
+):
+    first_child = Child(
+        adult_user_id=test_adult.id,
+        first_name="Lucas",
+        password_hash=hash_password("LucasPassword123"),
+        grade_level="6e",
+        is_active=True,
+    )
+    second_child = Child(
+        adult_user_id=other_adult.id,
+        first_name="Lucas",
+        password_hash=hash_password("LucasPassword123"),
+        grade_level="CM2",
+        is_active=True,
+    )
+
+    db_session.add_all([first_child, second_child])
+    db_session.flush()
+
+    first_login = client.post(
+        "/auth/child/login",
+        json={
+            "adult_identifier": test_adult.username,
+            "identifier": "Lucas",
+            "password": "LucasPassword123",
+        },
+    )
+
+    second_login = client.post(
+        "/auth/child/login",
+        json={
+            "adult_identifier": other_adult.username,
+            "identifier": "Lucas",
+            "password": "LucasPassword123",
+        },
+    )
+
+    assert first_login.status_code == 200
+    assert second_login.status_code == 200
+
+    assert (
+        first_login.json()["access_token"]
+        != second_login.json()["access_token"]
+    )
+
+
+
+def test_child_cannot_login_when_parent_is_inactive(
+    client,
+    test_adult,
+    test_child,
+    db_session,
+):
+    test_adult.is_active = False
+    db_session.flush()
+
+    response = client.post(
+        "/auth/child/login",
+        json={
+            "adult_identifier": test_adult.username,
+            "identifier": test_child.first_name,
+            "password": "ChildPassword123",
+        },
+    )
+
+    assert response.status_code == 401

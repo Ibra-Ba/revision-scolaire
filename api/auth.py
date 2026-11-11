@@ -48,6 +48,11 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    if isinstance(user, Child):
+        adult = db.get(AdultUser, user.adult_user_id)
+        if adult is None or not adult.is_active:
+            raise credentials_exception
+
     return user
 
 

@@ -11,6 +11,14 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class ChildLoginRequest(BaseModel):
+    """Credentials submitted by a child."""
+
+    adult_identifier: str = Field(min_length=1, max_length=100)
+    identifier: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=128)
+
+
 class TokenResponse(BaseModel):
     """JWT access token returned after successful login."""
 

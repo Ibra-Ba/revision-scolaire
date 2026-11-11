@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from api.auth import CurrentUser
 from api.dependencies import get_db
 from api.models import AdultUser, Child
-from api.schemas.auth import CurrentUserRead, LoginRequest, TokenResponse
+from api.schemas.auth import ChildLoginRequest, CurrentUserRead, LoginRequest, TokenResponse
 from core.security import create_access_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -24,16 +24,31 @@ def authenticate_user(
     identifier: str,
     password: str,
     user_type: str,
+    adult_identifier: str | None = None,
 ) -> AdultUser | Child | None:
     """Authenticate an adult or a child."""
+
     if user_type == "adult":
         statement = select(AdultUser).where(
             AdultUser.username == identifier
         )
-    else:
-        statement = select(Child).where(
-            Child.first_name == identifier
+
+    elif user_type == "child":
+        if adult_identifier is None:
+            return None
+
+        statement = (
+            select(Child)
+            .join(AdultUser, Child.adult_user_id == AdultUser.id)
+            .where(
+                AdultUser.username == adult_identifier,
+                AdultUser.is_active.is_(True),
+                Child.first_name == identifier,
+            )
         )
+
+    else:
+        return None
 
     user = db.scalar(statement)
 
@@ -49,15 +64,23 @@ def authenticate_user(
 
 def login(
     db: Session,
-    credentials: LoginRequest,
+    credentials: LoginRequest | ChildLoginRequest,
     user_type: str,
 ) -> TokenResponse:
     """Validate credentials and return an access token."""
+
+    adult_identifier = (
+        credentials.adult_identifier
+        if isinstance(credentials, ChildLoginRequest)
+        else None
+    )
+
     user = authenticate_user(
         db,
         credentials.identifier,
         credentials.password,
         user_type,
+        adult_identifier,
     )
 
     if user is None:
@@ -79,7 +102,10 @@ def adult_login(credentials: LoginRequest, db: DbSession) -> TokenResponse:
 
 
 @router.post("/child/login", response_model=TokenResponse)
-def child_login(credentials: LoginRequest, db: DbSession) -> TokenResponse:
+def child_login(
+    credentials: ChildLoginRequest,
+    db: DbSession,
+) -> TokenResponse:
     """Log in a child."""
     return login(db, credentials, "child")
 

@@ -1,7 +1,14 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,7 +27,13 @@ class AdultUser(Base):
 
 class Child(Base):
     __tablename__ = "children"
-
+    __table_args__ = (
+    UniqueConstraint(
+        "adult_user_id",
+        "first_name",
+        name="uq_children_adult_user_id_first_name",
+        ),
+    )
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     adult_user_id: Mapped[UUID] = mapped_column(
     PG_UUID(as_uuid=True),

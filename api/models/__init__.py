@@ -1,7 +1,12 @@
 """Import all ORM models so SQLAlchemy metadata and Alembic can discover them."""
 
 from api.models.accounts import AdultUser, Child
-from api.models.curriculum import Chapter, Subject, Subsection
+from api.models.curriculum import (
+    Chapter,
+    Subject,
+    Subsection,
+    SubsectionVersion,
+)
 from api.models.learning import ExerciseAttempt, ExerciseSession
 from api.models.monitoring import GenerationRun, MonitoringAlert, QualityCheck, SystemMetric
 from api.models.resources import (
@@ -30,6 +35,7 @@ __all__ = [
     "RevisionSheet",
     "Subject",
     "Subsection",
+    "SubsectionVersion",
     "SystemMetric",
     "resource_subsections",
 ]

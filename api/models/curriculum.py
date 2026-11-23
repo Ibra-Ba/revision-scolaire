@@ -76,3 +76,55 @@ class Subsection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     chapter: Mapped["Chapter"] = relationship(back_populates="subsections")
+    versions: Mapped[list["SubsectionVersion"]] = relationship(
+    back_populates="subsection",
+    order_by="SubsectionVersion.version_number",
+    )
+
+
+
+class SubsectionVersion(Base):
+    __tablename__ = "subsection_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "subsection_id",
+            "version_number",
+            name="uq_subsection_version_number",
+        ),
+        CheckConstraint(
+            "version_number > 0",
+            name="ck_subsection_version_number_positive",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    subsection_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("subsections.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    validated_by: Mapped[UUID | None] = mapped_column(
+    PG_UUID(as_uuid=True)
+    )
+    validator_type: Mapped[str | None] = mapped_column(String(10))
+    validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    subsection: Mapped["Subsection"] = relationship(
+        back_populates="versions"
+    )
+

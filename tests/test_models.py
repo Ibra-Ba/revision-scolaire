@@ -4,11 +4,12 @@ from core.database import Base
 
 def test_expected_tables_are_registered() -> None:
     expected = {
-        "adult_users", "children", "subjects", "chapters", "subsections",
-        "resources", "revision_sheets", "exercise_sets", "resource_subsections",
-        "exercises", "exercise_sessions", "exercise_attempts", "resource_reviews",
-        "audit_events", "generation_runs", "quality_checks", "system_metrics",
-        "monitoring_alerts",
+    "adult_users", "children", "subjects", "chapters", "subsections",
+    "subsection_versions",
+    "resources", "revision_sheets", "exercise_sets", "resource_subsections",
+    "exercises", "exercise_sessions", "exercise_attempts", "resource_reviews",
+    "audit_events", "generation_runs", "quality_checks", "system_metrics",
+    "monitoring_alerts",
     }
     assert expected == set(Base.metadata.tables)
 

@@ -27,6 +27,7 @@ env/
 *.log
 tmp/
 temp/
+backups/
 
 # Données et documents de cours
 data/
@@ -46,4 +47,4 @@ Thumbs.db
 # Other
 revipote_patch/
 scripts/
-backup_revipote_before_parent_migration.sql
+

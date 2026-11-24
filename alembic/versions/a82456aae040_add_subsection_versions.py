@@ -3,9 +3,9 @@ import hashlib
 from collections.abc import Sequence
 from uuid import uuid4
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = "a82456aae040"
 down_revision: str | None = "b0a6c25bc9c0"

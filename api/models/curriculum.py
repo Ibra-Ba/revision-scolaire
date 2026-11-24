@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -16,6 +17,9 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+
+if TYPE_CHECKING:
+    from api.models.monitoring import GenerationRunSubsectionVersion
 
 
 class Subject(Base):
@@ -126,5 +130,8 @@ class SubsectionVersion(Base):
 
     subsection: Mapped["Subsection"] = relationship(
         back_populates="versions"
+    )
+    generation_usages: Mapped[list["GenerationRunSubsectionVersion"]] = relationship(
+    back_populates="subsection_version",
     )
 

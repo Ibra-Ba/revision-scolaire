@@ -1,11 +1,22 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from api.models.curriculum import SubsectionVersion
 from core.database import Base
 
 
@@ -30,6 +41,11 @@ class GenerationRun(Base):
     output_tokens: Mapped[int | None] = mapped_column(Integer)
     estimated_cost_eur: Mapped[float | None] = mapped_column(Float)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    source_versions: Mapped[list["GenerationRunSubsectionVersion"]] = relationship(
+    back_populates="generation_run",
+    cascade="all, delete-orphan",
+    order_by="GenerationRunSubsectionVersion.position",
+)
 
 
 class QualityCheck(Base):
@@ -71,3 +87,39 @@ class MonitoringAlert(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+
+class GenerationRunSubsectionVersion(Base):
+    __tablename__ = "generation_run_subsection_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "generation_run_id",
+            "position",
+            name="uq_generation_run_source_position",
+        ),
+        CheckConstraint(
+            "position > 0",
+            name="ck_generation_run_source_position_positive",
+        ),
+    )
+
+    generation_run_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("generation_runs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    subsection_version_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("subsection_versions.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    generation_run: Mapped["GenerationRun"] = relationship(
+        back_populates="source_versions"
+    )
+    subsection_version: Mapped["SubsectionVersion"] = relationship(
+        back_populates="generation_usages"
+    )

@@ -8,7 +8,13 @@ from api.models.curriculum import (
     SubsectionVersion,
 )
 from api.models.learning import ExerciseAttempt, ExerciseSession
-from api.models.monitoring import GenerationRun, MonitoringAlert, QualityCheck, SystemMetric
+from api.models.monitoring import (
+    GenerationRun,
+    GenerationRunSubsectionVersion,
+    MonitoringAlert,
+    QualityCheck,
+    SystemMetric,
+)
 from api.models.resources import (
     Exercise,
     ExerciseSet,
@@ -28,6 +34,7 @@ __all__ = [
     "ExerciseSession",
     "ExerciseSet",
     "GenerationRun",
+    "GenerationRunSubsectionVersion",
     "MonitoringAlert",
     "QualityCheck",
     "Resource",

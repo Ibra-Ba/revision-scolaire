@@ -9,7 +9,7 @@ def test_expected_tables_are_registered() -> None:
     "resources", "revision_sheets", "exercise_sets", "resource_subsections",
     "exercises", "exercise_sessions", "exercise_attempts", "resource_reviews",
     "audit_events", "generation_runs", "quality_checks", "system_metrics",
-    "monitoring_alerts",
+    "monitoring_alerts", "generation_run_subsection_versions",
     }
     assert expected == set(Base.metadata.tables)
 
@@ -17,3 +17,11 @@ def test_expected_tables_are_registered() -> None:
 def test_resource_subsections_has_composite_primary_key() -> None:
     table = Base.metadata.tables["resource_subsections"]
     assert {column.name for column in table.primary_key.columns} == {"resource_id", "subsection_id"}
+
+
+def test_generation_run_subsection_versions_has_composite_primary_key() -> None:
+    table = Base.metadata.tables["generation_run_subsection_versions"]
+
+    assert {
+        column.name for column in table.primary_key.columns
+    } == {"generation_run_id", "subsection_version_id"}

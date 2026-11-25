@@ -2,6 +2,7 @@
 """API routes for the school curriculum."""
 # ruff: noqa: B008
 
+import hashlib
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from api.models import (
     Child,
     Subject,
     Subsection,
+    SubsectionVersion,
 )
 from api.models.reviews import AuditEvent
 from api.permissions import (
@@ -337,12 +339,40 @@ def validate_subsection(
 
     validator_type = "adult"
     validator_id = current_user.id
+    validated_at = datetime.now(UTC)
+    content_hash = hashlib.sha256(
+        subsection.source_text.encode("utf-8")
+    ).hexdigest()
+
+    latest_version = db.scalar(
+        select(SubsectionVersion)
+        .where(SubsectionVersion.subsection_id == subsection.id)
+        .order_by(SubsectionVersion.version_number.desc())
+        .limit(1)
+    )
+
+    if latest_version is None or latest_version.content_hash != content_hash:
+        next_version_number = (
+            latest_version.version_number + 1
+            if latest_version is not None
+            else 1
+        )
+
+        subsection_version = SubsectionVersion(
+            subsection_id=subsection.id,
+            version_number=next_version_number,
+            source_text=subsection.source_text,
+            content_hash=content_hash,
+            validated_by=validator_id,
+            validator_type=validator_type,
+            validated_at=validated_at,
+        )
+        db.add(subsection_version)
 
     subsection.status = "approved"
     subsection.validated_by = validator_id
     subsection.validator_type = validator_type
-    subsection.validated_at = datetime.now(UTC)
-
+    subsection.validated_at = validated_at
     audit_event = AuditEvent(
         actor_type=validator_type,
         actor_id=validator_id,

@@ -1,4 +1,6 @@
 
+import hashlib
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -12,7 +14,12 @@ from api.models import (
     AuditEvent,
     Child,
 )
-from api.models.curriculum import Chapter, Subject, Subsection
+from api.models.curriculum import (
+    Chapter,
+    Subject,
+    Subsection,
+    SubsectionVersion,
+)
 from core.security import hash_password
 
 
@@ -481,7 +488,6 @@ def test_adult_can_validate_subsection_with_own_identity(
     )
 
     assert response.status_code == 200
-
     data = response.json()
     assert data["status"] == "approved"
     assert data["validated_by"] == str(test_adult.id)
@@ -495,10 +501,81 @@ def test_adult_can_validate_subsection_with_own_identity(
         )
     .one()
     )
-
     assert audit_event.actor_type == "adult"
     assert audit_event.actor_id == test_adult.id
     assert audit_event.resource_type == "subsection"
+    version = db_session.scalar(
+        select(SubsectionVersion).where(
+            SubsectionVersion.subsection_id == subsection.id
+        )
+    )
+    assert version is not None
+    assert version.version_number == 1
+    assert version.source_text == "Une moitié est supérieure à un quart."
+    assert version.content_hash == hashlib.sha256(
+        version.source_text.encode("utf-8")
+    ).hexdigest()
+    assert version.validated_by == test_adult.id
+    assert version.validator_type == "adult"
+    assert version.validated_at is not None
+        # Revalidation without content changes must not create a new version.
+    response = client.post(
+        f"/subsections/{subsection.id}/validate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    versions = db_session.scalars(
+        select(SubsectionVersion)
+        .where(SubsectionVersion.subsection_id == subsection.id)
+        .order_by(SubsectionVersion.version_number)
+    ).all()
+
+    assert len(versions) == 1
+
+    # Updating the content and validating it must create version 2.
+    updated_text = "Une moitié est égale à deux quarts."
+
+    response = client.put(
+        f"/subsections/{subsection.id}/content",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"source_text": updated_text},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "draft"
+
+    response = client.post(
+        f"/subsections/{subsection.id}/validate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    versions = db_session.scalars(
+        select(SubsectionVersion)
+        .where(SubsectionVersion.subsection_id == subsection.id)
+        .order_by(SubsectionVersion.version_number)
+    ).all()
+
+    assert len(versions) == 2
+
+    # Version 1 must remain unchanged.
+    assert versions[0].version_number == 1
+    assert versions[0].source_text == (
+        "Une moitié est supérieure à un quart."
+    )
+    assert versions[0].content_hash == hashlib.sha256(
+        versions[0].source_text.encode("utf-8")
+    ).hexdigest()
+
+    # Version 2 must contain the updated content.
+    assert versions[1].version_number == 2
+    assert versions[1].source_text == updated_text
+    assert versions[1].content_hash == hashlib.sha256(
+        updated_text.encode("utf-8")
+    ).hexdigest()
 
 
 def test_child_cannot_validate_another_child_subsection(
